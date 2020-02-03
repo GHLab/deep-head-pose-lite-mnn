@@ -1,16 +1,20 @@
 #include "HeadPoseDetectorMNN.h"
 
 #include <MNN/ImageProcess.hpp>
+#include <MNN/expr/ExprCreator.hpp>
 
 #define kInputSize 224
+#define kOutputSize 66
+
+using namespace MNN::Express;
 
 HeadPoseDetectorMNN::HeadPoseDetectorMNN()
 {
-    m_interpreter = std::shared_ptr<MNN::Interpreter>(MNN::Interpreter::createFromFile("hopenet_lite.mnn"));
+    m_interpreter = std::shared_ptr<MNN::Interpreter>(MNN::Interpreter::createFromFile("/Users/ghlab/Dev/git/MNN/build/hopenet_lite.mnn"));
 
     MNN::ScheduleConfig config;
     config.numThread = 1;
-    //config.type = MNN_FORWARD_METAL;
+    config.type = MNN_FORWARD_METAL;
     MNN::BackendConfig backendConfig;
     backendConfig.precision = MNN::BackendConfig::PrecisionMode::Precision_Low;
     config.backendConfig = &backendConfig;
@@ -18,6 +22,7 @@ HeadPoseDetectorMNN::HeadPoseDetectorMNN()
     m_session = m_interpreter->createSession(config);
 
     m_tensor = m_interpreter->getSessionInput(m_session, nullptr);
+
 }
 
 HeadPoseDetectorMNN::~HeadPoseDetectorMNN()
@@ -54,12 +59,47 @@ bool HeadPoseDetectorMNN::detect(const cv::Mat &rgb, /*out*/double &yaw, /*out*/
 
     m_interpreter->runSession(m_session);
 
-    const std::map<std::string, MNN::Tensor*> &outputs = m_interpreter->getSessionOutputAll(m_session);
+    const MNN::Tensor *yawTensor = m_interpreter->getSessionOutput(m_session, "616");
+    const MNN::Tensor *pitchTensor = m_interpreter->getSessionOutput(m_session, "617");
+    const MNN::Tensor *rollTensor = m_interpreter->getSessionOutput(m_session, "618");
 
-    for (auto &keyVal : outputs)
+    yaw = calcPoseValue(yawTensor);
+    pitch = calcPoseValue(pitchTensor);
+    roll = calcPoseValue(rollTensor);
+
+    return true;
+}
+
+double HeadPoseDetectorMNN::calcPoseValue(const MNN::Tensor *tensor)
+{
+    if (tensor == nullptr)
+        return 0;
+
+    tensor->getDimensionType();
+
+    MNN::Tensor tensorHost(tensor, tensor->getDimensionType());
+
+    tensor->copyToHostTensor(&tensorHost);
+
+    std::vector<float> vals;
+
+    for (int i = 0; i < kOutputSize; i++)
     {
-        MNN::Tensor *tensor = keyVal.second;
-
-        // tensor is null
+        vals.push_back(tensorHost.host<float>()[i]);
     }
+
+    auto input = _Input({1, 66}, NCHW);
+    auto inputPtr = input->writeMap<float>();
+    memcpy(inputPtr, vals.data(), vals.size() * sizeof(float));
+    input->unMap();
+    auto output = _Softmax(input);
+    auto predicted = output->readMap<float>();
+
+    double result = 0;
+    for (int i = 0; i < kOutputSize; i++)
+    {
+        result += (predicted[i] * i);
+    }
+
+    return result * 3 - 99;
 }

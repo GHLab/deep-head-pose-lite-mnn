@@ -28,6 +28,9 @@ public:
     bool detect(const cv::Mat &rgb, /*out*/double &yaw, /*out*/double &pitch, /*out*/double &roll);
 
 private:
+    double calcPoseValue(const MNN::Tensor *tensor);
+
+private:
     std::shared_ptr<MNN::Interpreter> m_interpreter;
     MNN::Session *m_session = nullptr;
     MNN::Tensor *m_tensor = nullptr;
