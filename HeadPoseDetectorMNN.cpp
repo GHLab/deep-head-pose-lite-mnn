@@ -10,7 +10,7 @@ using namespace MNN::Express;
 
 HeadPoseDetectorMNN::HeadPoseDetectorMNN()
 {
-    m_interpreter = std::shared_ptr<MNN::Interpreter>(MNN::Interpreter::createFromFile("/Users/ghlab/Dev/git/MNN/build/hopenet_lite.mnn"));
+    m_interpreter = std::shared_ptr<MNN::Interpreter>(MNN::Interpreter::createFromFile("hopenet_lite.mnn"));
 
     MNN::ScheduleConfig config;
     config.numThread = 1;
